@@ -1,0 +1,146 @@
+#include <LiquidCrystal.h>
+#include <Keypad.h>
+
+// LCD pin configuration: RS, EN, D4, D5, D6, D7
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+
+// Keypad layout
+const byte ROWS = 4;
+const byte COLS = 4;
+
+char keys[ROWS][COLS] = {
+  {'1', '2', '3', 'S'},    // S = Shift (unused)
+  {'4', '5', '6', '+'},
+  {'7', '8', '9', '-'},
+  {'C', '0', '=', 'F'}     // C = Clear, F = Divide
+};
+
+// Jumbled row pins (bottom to top): 0 → 39, 1 → 37, 2 → 35, 3 → 33
+const byte rowPins[ROWS] = {39, 37, 35, 33};
+const byte colPins[COLS] = {41, 43, 45, 47};
+
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
+// Calculator state
+String input1 = "";
+String input2 = "";
+char operation = 0;
+bool secondInput = false;
+
+void setup() {
+  lcd.begin(16, 2);
+  Serial.begin(9600);
+
+  lcd.print("Float Calculator");
+  delay(1500);
+  lcd.clear();
+}
+
+void loop() {
+  char key = keypad.getKey();
+
+  if (key) {
+    describeKey(key);  // Serial debug
+
+    if (key == 'C') {
+      resetCalc();
+      return;
+    }
+
+    // If operator pressed and input1 is ready
+    if ((key == '+' || key == '-' || key == 'F') && !secondInput && input1.length()) {
+      operation = key;
+      secondInput = true;
+      lcd.setCursor(0, 1);
+      lcd.print(operation);
+      return;
+    }
+
+    // Equal key: compute result
+    if (key == '=') {
+      if (input1.length() && input2.length() && operation != 0) {
+        float a = input1.toFloat();
+        float b = input2.toFloat();
+        float result = 0.0;
+
+        switch (operation) {
+          case '+': result = a + b; break;
+          case '-': result = a - b; break;
+          case 'F': 
+            if (b != 0.0) result = a / b;
+            else {
+              lcd.clear();
+              lcd.print("Error: Divide 0");
+              delay(1500);
+              resetCalc();
+              return;
+            }
+            break;
+        }
+
+        lcd.clear();
+        lcd.print("Result:");
+        lcd.setCursor(0, 1);
+        lcd.print(result, 4); // show 4 decimal places
+        delay(2000);
+        resetCalc();
+      }
+      return;
+    }
+
+    // Append numbers to inputs
+    if (key >= '0' && key <= '9') {
+      if (!secondInput) {
+        input1 += key;
+        lcd.setCursor(0, 0);
+        lcd.print(input1);
+      } else {
+        input2 += key;
+        lcd.setCursor(2, 1);
+        lcd.print(input2);
+      }
+    }
+  }
+}
+
+// Serial-based key mapping description
+void describeKey(char k) {
+  const char keyLayout[ROWS][COLS] = {
+    {'1', '2', '3', 'S'},
+    {'4', '5', '6', '+'},
+    {'7', '8', '9', '-'},
+    {'C', '0', '=', 'F'}
+  };
+
+  for (int r = 0; r < ROWS; r++) {
+    for (int c = 0; c < COLS; c++) {
+      if (keyLayout[r][c] == k) {
+        Serial.print("Key: ");
+        Serial.print(k);
+        Serial.print(" → Row ");
+        Serial.print(r);
+        Serial.print(" (Pin ");
+        Serial.print(rowPins[r]);
+        Serial.print("), Column ");
+        Serial.print(c);
+        Serial.print(" (Pin ");
+        Serial.print(colPins[c]);
+        Serial.println(")");
+        return;
+      }
+    }
+  }
+
+  Serial.print("Key: ");
+  Serial.print(k);
+  Serial.println(" → Unknown mapping");
+}
+
+// Clear calculator state
+void resetCalc() {
+  input1 = "";
+  input2 = "";
+  operation = 0;
+  secondInput = false;
+  lcd.clear();
+}
