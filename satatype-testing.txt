@@ -1,0 +1,189 @@
+#include <LiquidCrystal.h>
+
+// LCD RS, EN, D4, D5, D6, D7
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+
+// LCD Shield Keypad Thresholds
+#define btnRIGHT 0
+#define btnUP 1
+#define btnDOWN 2
+#define btnLEFT 3
+#define btnSELECT 4
+#define btnNONE 5
+
+int read_LCD_buttons() {
+  int adc_key_in = analogRead(0);
+  if (adc_key_in > 1000) return btnNONE;
+  if (adc_key_in < 50)   return btnRIGHT;
+  if (adc_key_in < 195)  return btnUP;
+  if (adc_key_in < 380)  return btnDOWN;
+  if (adc_key_in < 555)  return btnLEFT;
+  if (adc_key_in < 790)  return btnSELECT;
+  return btnNONE;
+}
+
+const char* menu[] = {
+  "1.Div: Newton Raph",
+  "2.Sqrt: Iterative",
+  "3.Sin/Cos/Tan",
+  "4.Exp Iteration",
+  "5.GCD Finder"
+};
+
+int menuIndex = 0;
+int totalMenuItems = sizeof(menu) / sizeof(menu[0]);
+bool inMenu = true;
+bool running = false;
+
+float a = 78, b = 90;
+float result = 0;
+int step = 1;
+int iterationCount = 0;
+
+void setup() {
+  lcd.begin(16, 2);
+  showMenu();
+}
+
+void loop() {
+  int button = read_LCD_buttons();
+
+  if (inMenu) {
+    if (button == btnUP) {
+      menuIndex = (menuIndex - 1 + totalMenuItems) % totalMenuItems;
+      showMenu(); delay(200);
+    } else if (button == btnDOWN) {
+      menuIndex = (menuIndex + 1) % totalMenuItems;
+      showMenu(); delay(200);
+    } else if (button == btnSELECT) {
+      inMenu = false;
+      showInputScreen();
+    }
+  } else if (!running) {
+    // Tweak a and b
+    if (button == btnLEFT)  { a -= step; showInputScreen(); delay(150); }
+    if (button == btnRIGHT) { a += step; showInputScreen(); delay(150); }
+    if (button == btnUP)    { b += step; showInputScreen(); delay(150); }
+    if (button == btnDOWN)  { b -= step; showInputScreen(); delay(150); }
+
+    // Run algorithm
+    if (button == btnSELECT) {
+      running = true;
+      lcd.clear();
+      lcd.setCursor(0, 0); lcd.print("Running...");
+      delay(500);
+      lcd.clear();
+      switch (menuIndex) {
+        case 0: newtonRaphsonDiv(a, b); break;
+        case 1: sqrtIterative(a); break;
+        case 2: trigFunctions(a); break;
+        case 3: exponentialIter(a); break;
+        case 4: gcdFinder((int)a, (int)b); break;
+      }
+      running = false;
+      inMenu = true;
+      showMenu();
+    }
+  }
+}
+
+// -------------------- UI Functions ---------------------
+void showMenu() {
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print(">"); lcd.print(menu[menuIndex]);
+  lcd.setCursor(0, 1);
+  int nextItem = (menuIndex + 1) % totalMenuItems;
+  lcd.print(" "); lcd.print(menu[nextItem]);
+}
+
+void showInputScreen() {
+  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print("a="); lcd.print(a);
+  lcd.setCursor(0, 1); lcd.print("b="); lcd.print(b);
+}
+
+void showResult(float val) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Iter: "); lcd.print(iterationCount);
+  lcd.setCursor(0, 1);
+  lcd.print("Res= "); lcd.print(val, 9);
+  delay(1000);
+}
+
+// -------------------- Algorithms ---------------------
+
+void newtonRaphsonDiv(float A, float B) {
+  float x = 1.0 / B;
+  for (iterationCount = 1; iterationCount <= 5; iterationCount++) {
+    x = x * (2.0 - B * x);
+    result = A * x;
+    showResult(result);
+  }
+}
+
+void sqrtIterative(float A) {
+  float guess = A / 2;
+  for (iterationCount = 1; iterationCount <= 5; iterationCount++) {
+    guess = 0.5 * (guess + A / guess);
+    showResult(guess);
+  }
+}
+
+void trigFunctions(float angleRad) {
+  float sinx = 0, cosx = 0, term = 0;
+  float x = angleRad;
+  sinx = x;
+  cosx = 1;
+  term = x;
+  lcd.clear();
+  for (int i = 1; i <= 5; i++) {
+    term *= -1 * x * x / ((2 * i) * (2 * i + 1));
+    sinx += term;
+  }
+  term = 1;
+  for (int i = 1; i <= 5; i++) {
+    term *= -1 * x * x / ((2 * i - 1) * (2 * i));
+    cosx += term;
+  }
+  float tanx = sinx / cosx;
+
+  lcd.setCursor(0, 0);
+  lcd.print("Sin="); lcd.print(sinx, 5);
+  lcd.setCursor(0, 1);
+  lcd.print("Cos="); lcd.print(cosx, 5);
+  delay(2000);
+  lcd.clear();
+  lcd.print("Tan="); lcd.print(tanx, 5);
+  delay(2000);
+}
+
+void exponentialIter(float x) {
+  float sum = 1.0;
+  float term = 1.0;
+  for (iterationCount = 1; iterationCount <= 9; iterationCount++) {
+    term *= x / iterationCount;
+    sum += term;
+    showResult(sum);
+  }
+}
+
+void gcdFinder(int x, int y) {
+  int steps = 0;
+  while (y != 0) {
+    int temp = y;
+    y = x % y;
+    x = temp;
+    steps++;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Step "); lcd.print(steps);
+    lcd.setCursor(0, 1);
+    lcd.print("GCD? "); lcd.print(x);
+    delay(1000);
+  }
+  lcd.clear();
+  lcd.print("GCD = ");
+  lcd.print(x);
+  delay(2000);
+}
